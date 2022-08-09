@@ -6,6 +6,8 @@ import sys
 
 from bleak import BleakClient
 
+sendFlag = True
+
 # helper function
 def notification_handler(sender, data):
     # print(', '.join('{:02x}'.format(x) for x in data))
@@ -18,18 +20,25 @@ def notification_handler(sender, data):
     # print(data)
     # print(f" {data.hex()}")
 
-    dataPacket = bytearray(data);
-    # print(dataPacket)
-    DacHighByte = data[1]
-    DacLowByte = data[0]
-    DacHighByteConv = DacHighByte << 8
-    dacVal = DacHighByteConv | DacLowByte
+    dacVal = data[0:4]
+    adcVal = data[4:8]
+    print(f"dac float {struct.unpack('f',dacVal)} adc float {struct.unpack('f', adcVal)}")
+    #print(dacVal)
+
+
+    # works with 2 uints
+    # dataPacket = bytearray(data);
+    # DacHighByte = data[1]
+    # DacLowByte = data[0]
+    # DacHighByteConv = DacHighByte << 8
+    # dacVal = DacHighByteConv | DacLowByte
     
-    AdcHighByte = data[3]
-    AdcHighByteConv = AdcHighByte << 8
-    AdcLowByte = data[2]
-    adcVal = AdcHighByteConv | AdcLowByte
-    print(f"DAC: {dacVal}\t ADC: {adcVal}")
+    # AdcHighByte = data[3]
+    # AdcHighByteConv = AdcHighByte << 8
+    # AdcLowByte = data[2]
+    # adcVal = AdcHighByteConv | AdcLowByte
+    # printing works here
+    # print(f"DAC: {dacVal}\t ADC: {adcVal}")
 
 
 
@@ -47,6 +56,8 @@ async def run(address, loop, debug=False):
     async with BleakClient(address, loop=loop) as client:
         x = await client.is_connected()
         log.info("Connected: {0}".format(x))
+        # paired = await client.pair(protection_level=1)
+        # print(f"paired: {paired}")
 
         while True:
             for service in client.services:
@@ -65,6 +76,20 @@ async def run(address, loop, debug=False):
                         # await asyncio.sleep(1)
 
                         await client.start_notify(characteristics.uuid, notification_handler)
+                    global sendFlag
+                    if (sendFlag):
+                        print("HELLO WORLD")
+                        write_UUID = "ace26f61-0b66-48f8-a3e5-a565e8924ae5"
+                        # print(write_UUID)
+                        # global sendFlag 
+                        sendFlag = False
+                        max_volt = 2
+                        # sendData = bytearray([max_volt, min_volt, start_volt, direction_up, numCycles])
+                        sendData = bytearray([max_volt])
+                        print(sendData)
+                        answer = await client.write_gatt_char(write_UUID, sendData, response=True)
+                        print(answer)
+                        print("DONE SENDINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")
 
 
 
