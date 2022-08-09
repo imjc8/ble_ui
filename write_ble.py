@@ -22,13 +22,18 @@ async def run(address, loop, debug=False):
     async with BleakClient(address, loop=loop) as client:
         x = await client.is_connected()
         log.info("Connected: {0}".format(x))
+        # is_paired = await client.pair(protection_level=1)
+        # print(f"Paired: {is_paired}")
 
         while True:
             for service in client.services:
                 for characteristics in service.characteristics:
                     if characteristics.uuid == "ace26f61-0b66-48f8-a3e5-a565e8924ae5":
                         print("HELLO WORLD")
-                        await client.write_gatt_char(characteristics.uuid, b'\x01', True)
+                        max_volt = 100
+                        sendData = bytearray([max_volt])
+                        await client.write_gatt_char(characteristics.uuid, sendData, True)
+                        print(sendData)
                         print("DONE SENDINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")
 
 
