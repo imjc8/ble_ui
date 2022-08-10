@@ -30,7 +30,7 @@ async def run(address, loop, debug=False):
                 for characteristics in service.characteristics:
                     if characteristics.uuid == "ace26f61-0b66-48f8-a3e5-a565e8924ae5":
                         print("HELLO WORLD")
-                        max_volt = 100
+                        max_volt = 101
                         sendData = bytearray([max_volt])
                         await client.write_gatt_char(characteristics.uuid, sendData, True)
                         print(sendData)
