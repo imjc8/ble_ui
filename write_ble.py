@@ -3,6 +3,7 @@ import asyncio
 import logging
 import struct
 import sys
+import tkinter as tk
 
 from bleak import BleakClient
 
@@ -28,10 +29,27 @@ async def run(address, loop, debug=False):
         while True:
             for service in client.services:
                 for characteristics in service.characteristics:
-                    if characteristics.uuid == "ace26f61-0b66-48f8-a3e5-a565e8924ae5":
+                    # float send 3b7b5251-740d-4429-88f2-2e9b94fcb7aa
+                    # int send ace26f61-0b66-48f8-a3e5-a565e8924ae5
+                    if characteristics.uuid == "3b7b5251-740d-4429-88f2-2e9b94fcb7aa":
                         print("HELLO WORLD")
-                        max_volt = 101
-                        sendData = bytearray([max_volt])
+                        # parameters to send
+                        min_volt = -0.5
+                        max_volt = 0.5
+                        start_volt = 0.0
+                        dir = False
+                        numCycles = 2
+
+                        # convert to byte array
+                        
+                        minVoltData = bytearray(struct.pack("f", min_volt))
+                        maxVoltData = bytearray(struct.pack("f", max_volt))
+                        startVoltData = bytearray(struct.pack("f", start_volt))
+                        dirData = bytearray([dir])
+                        numCyclesData = bytearray([numCycles])
+                        
+                        # make byte string
+                        sendData = minVoltData + maxVoltData + startVoltData + dirData + numCyclesData
                         await client.write_gatt_char(characteristics.uuid, sendData, True)
                         print(sendData)
                         print("DONE SENDINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")
