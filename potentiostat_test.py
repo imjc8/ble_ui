@@ -20,9 +20,10 @@ def notification_handler(sender, data):
     # print(data)
     # print(f" {data.hex()}")
 
-    dacVal = data[0:4]
-    adcVal = data[4:8]
-    print(f"dac float {struct.unpack('f',dacVal)} adc float {struct.unpack('f', adcVal)}")
+    #dacVal = data[0:4]
+    #adcVal = data[4:8]
+    dacVal, adcVal = struct.unpack('HH', data)
+    print(f"dac count {dacVal} adc count {adcVal}")
     #print(dacVal)
 
 
