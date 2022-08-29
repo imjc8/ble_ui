@@ -5,11 +5,14 @@ import struct
 import sys
 import tkinter as tk
 import csv
+import argparse
 
 from bleak import BleakClient
 
 sendFlag = True
 sendOnce = True
+running = True
+
 
 fd = open('data.csv','w')
 writer = csv.writer(fd)
@@ -28,11 +31,31 @@ def notification_handler(sender, data):
 
     #dacVal = data[0:4]
     #adcVal = data[4:8]
-    unpack_dat = struct.unpack('HH', data)
-    print(f"dac count {unpack_dat[0]} adc count {unpack_dat[1]}")
-    #print(dacVal)
-    writer.writerow(unpack_dat)
+    rx_dat = struct.iter_unpack('HH', data)
+    for unpack_dat in rx_dat:
+        print(f"dac count {unpack_dat[0]} adc count {unpack_dat[1]}")
+        #print(dacVal)
+        writer.writerow(unpack_dat)
 
+
+def notification_handler2(sender, data):
+    # print(', '.join('{:02x}'.format(x) for x in data))
+    # print(int.from_bytes(data, "little"))
+    #print(f"val hex {data.hex()} float {struct.unpack('f',data)} ")
+    # print(sys.getsizeof(data))
+    # print(data[0]);
+    # print(int.from_bytes(data[0:1],"little"))
+
+    # print(data)
+    # print(f" {data.hex()}")
+
+    #dacVal = data[0:4]
+    #adcVal = data[4:8]
+    global running
+    rx_dat = int.from_bytes(data,byteorder='little')
+    print(f"Current state is {rx_dat}")
+    if rx_dat == 5:
+        running = False
 
     # works with 2 uints
     # dataPacket = bytearray(data);
@@ -48,15 +71,10 @@ def notification_handler(sender, data):
     # printing works here
     # print(f"DAC: {dacVal}\t ADC: {adcVal}")
 
-
-
-
-async def run(address, loop, debug=False):
+async def run(address, loop, min_volt=0,max_volt=3.3,start_volt=0,scan_rate=1,dir=False,numCycles=3, debug=False):
     global sendOnce
     log = logging.getLogger(__name__)
     if debug:
-        import sys
-
         loop.set_debug(True)
         log.setLevel(logging.DEBUG)
         h = logging.StreamHandler(sys.stdout)
@@ -69,7 +87,7 @@ async def run(address, loop, debug=False):
         # is_paired = await client.pair(protection_level=1)
         # print(f"Paired: {is_paired}")
 
-        while True:
+        while running:
             for service in client.services:
                 for characteristics in service.characteristics:
                     # float send 3b7b5251-740d-4429-88f2-2e9b94fcb7aa
@@ -86,19 +104,32 @@ async def run(address, loop, debug=False):
                         # await asyncio.sleep(1)
 
                         await client.start_notify(characteristics.uuid, notification_handler)
+                    if characteristics.uuid == "0852723d-4e9e-4c32-adc4-284dad4e4c31":
+
+#                       value = bytes(await client.read_gatt_char(characteristics.uuid))
+#                        print("value is: ", int.from_bytes(value, "little"))
+
+                        #print(f"val hex {value.hex()} float {struct.unpack('f',value)} ")
+                        # value=value.decode("UTF-8")
+                        # print(type(value))
+                        # print("value is: ", value)
+                        # await asyncio.sleep(1)
+
+                        await client.start_notify(characteristics.uuid, notification_handler2)
+
                     if characteristics.uuid == "3b7b5251-740d-4429-88f2-2e9b94fcb7aa" and sendOnce:
                         print("HELLO WORLD")
                         # parameters to send
-                        min_volt =0
-                        max_volt =3.3
-                        start_volt = 0 
-                        scan_rate = 0.5
-                        dir = True
-                        numCycles = 2
+                        #min_volt =0
+                        #max_volt =3.3
+                        #start_volt = 0 
+                        #scan_rate = 0.5
+                        #dir = True
+                        #numCycles = 2
 
                         # convert to byte array
                         
-                        minVoltData = bytearray(struct.pack("f", min_volt))
+                        minVoltData = bytearray(struct.pack("f", 0))
                         maxVoltData = bytearray(struct.pack("f", max_volt))
                         startVoltData = bytearray(struct.pack("f", start_volt))
                         scanRateData = bytearray(struct.pack("f", scan_rate))
@@ -111,7 +142,7 @@ async def run(address, loop, debug=False):
                         print(sendData)
                         print("DONE SENDINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")
                         sendOnce = False
-
+        sys.exit(0)
 
 
         # for service in client.services:
@@ -144,6 +175,15 @@ if __name__ == "__main__":
         else "6CFF7923-7B84-41D3-B021-C823949216C1"
     )
     loop = asyncio.get_event_loop()
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument("min_volt", type=float)
+    parser.add_argument("max_volt",type=float)
+    parser.add_argument("start_volt",type=float)
+    parser.add_argument("scan_rate",type=float)
+    parser.add_argument("cycle",type=float)
+    parser.add_argument("-d", "--down", help="increase output verbosity",
+                    action="store_true")
+    args = parser.parse_args()
     loop.run_until_complete(run(address, loop, True))
 
 

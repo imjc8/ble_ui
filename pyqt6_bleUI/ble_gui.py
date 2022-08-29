@@ -23,6 +23,7 @@ import qasync
 
 names = ['jackson', 'james', 'lisa', 'mia']
 
+ADDR = "00:a0:50:e8:8a:bd"
 # create application
 class MyApp(QWidget):
     def __init__(self):
@@ -77,7 +78,9 @@ class MyApp(QWidget):
         deviceList = await BleakScanner.discover()
         for d in deviceList:
             print(d)
-            self.console.appendPlainText(d)
+            self.console.appendPlainText(str(d))
+            if d.address == ADDR:
+                self.console.appendPlainText(f"Device found: {d.address}")
         self.console.appendPlainText("Scan Finished")
         if len(deviceList) == 0:
             print("No devices found")
