@@ -1,3 +1,5 @@
+from datetime import datetime
+from decimal import DivisionByZero
 import platform
 import asyncio
 import logging
@@ -6,6 +8,7 @@ import sys
 import tkinter as tk
 import csv
 import argparse
+import time
 
 from bleak import BleakClient
 
@@ -14,8 +17,30 @@ sendOnce = True
 running = True
 
 
-fd = open('data.csv','w')
-writer = csv.writer(fd)
+
+fd = open('data_raw.csv','w')
+writer_raw = csv.writer(fd)
+
+
+fd2 = open('data.csv','w+')
+writer = csv.writer(fd2)
+
+DAC_OFFSET = 3.3/2
+ADC_OFFSET = 0
+GAIN = -100000
+
+def count_to_float_adc(count, vref, bits, ext_offset):
+    gain = 10*(2**bits)/(2*vref)    
+    return (count*10/gain) - ext_offset
+    #return (vref/(2**bits - 1) *count) - ext_offset
+def count_to_float_dac(count, vref, bits, ext_offset):
+    #gain = 10*(2**bits)/(2*vref)    
+    #return (count*10/gain) - ext_offset
+    return -((vref/(2**bits - 1) *count) - ext_offset)
+
+def voltage_to_current(volt):
+    return (30.303*volt - 50) * 1e-6
+
 
 
 def notification_handler(sender, data):
@@ -27,7 +52,7 @@ def notification_handler(sender, data):
     # print(int.from_bytes(data[0:1],"little"))
 
     # print(data)
-    # print(f" {data.hex()}")
+    # print(f" {data.hex()}")11
 
     #dacVal = data[0:4]
     #adcVal = data[4:8]
@@ -35,7 +60,12 @@ def notification_handler(sender, data):
     for unpack_dat in rx_dat:
         print(f"dac count {unpack_dat[0]} adc count {unpack_dat[1]}")
         #print(dacVal)
-        writer.writerow(unpack_dat)
+        writer_raw.writerow(unpack_dat)
+        dac_volt = count_to_float_dac(unpack_dat[0],3.3,12,DAC_OFFSET)
+        adc_volt = count_to_float_adc(unpack_dat[1],3.3,12,ADC_OFFSET)
+        print(f"dac volt {dac_volt} adc volt {adc_volt} current {voltage_to_current(adc_volt)}")
+        writer.writerow((dac_volt,voltage_to_current(adc_volt)))
+
 
 
 def notification_handler2(sender, data):
@@ -129,9 +159,9 @@ async def run(address, loop, min_volt=0,max_volt=3.3,start_volt=0,scan_rate=1,di
 
                         # convert to byte array
                         
-                        minVoltData = bytearray(struct.pack("f", 0))
-                        maxVoltData = bytearray(struct.pack("f", max_volt))
-                        startVoltData = bytearray(struct.pack("f", start_volt))
+                        minVoltData = bytearray(struct.pack("f", -max_volt + DAC_OFFSET))
+                        maxVoltData = bytearray(struct.pack("f", -min_volt + DAC_OFFSET))
+                        startVoltData = bytearray(struct.pack("f", start_volt + DAC_OFFSET))
                         scanRateData = bytearray(struct.pack("f", scan_rate))
                         dirData = bytearray([dir])
                         numCyclesData = bytearray([numCycles])
@@ -142,7 +172,7 @@ async def run(address, loop, min_volt=0,max_volt=3.3,start_volt=0,scan_rate=1,di
                         print(sendData)
                         print("DONE SENDINGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG")
                         sendOnce = False
-        sys.exit(0)
+        raise DivisionByZero
 
 
         # for service in client.services:
@@ -170,7 +200,8 @@ async def run(address, loop, min_volt=0,max_volt=3.3,start_volt=0,scan_rate=1,di
 
 if __name__ == "__main__":
     address = (
-        "00:a0:50:e8:8a:bd"
+        #"00:a0:50:e8:8a:bd"
+        "00:A0:50:D5:31:22"
         if platform.system() != "Darwin"
         else "6CFF7923-7B84-41D3-B021-C823949216C1"
     )
@@ -180,10 +211,29 @@ if __name__ == "__main__":
     parser.add_argument("max_volt",type=float)
     parser.add_argument("start_volt",type=float)
     parser.add_argument("scan_rate",type=float)
-    parser.add_argument("cycle",type=float)
+    parser.add_argument("cycle",type=int)
     parser.add_argument("-d", "--down", help="increase output verbosity",
                     action="store_true")
+
     args = parser.parse_args()
-    loop.run_until_complete(run(address, loop, True))
-
-
+    if args.down:
+        direction = True
+    else:
+        direction = False
+    now = datetime.now()
+    try:
+        loop.run_until_complete(run(address, loop, min_volt=args.min_volt, max_volt=args.max_volt, start_volt=args.start_volt, scan_rate=args.scan_rate, dir=direction, numCycles=args.cycle))
+    except DivisionByZero:
+        pass
+    print("Finished experiment")
+    fd2.close()
+    if direction:
+        direction_str = 'down'
+    else:
+        direction_str = 'up'
+    with open(f"data_{now.year}{now.month:02}{now.day:02}_{now.hour:02}{now.minute:02}{now.second:02}.csv", 'a') as output_file, open(f"data.csv",'r') as input_file:
+        output_file.write(f"# Params: min_volt {args.min_volt} max_volt {args.max_volt} start_volt {args.start_volt} scan_rate {args.scan_rate} direction {direction_str} num_cycles {args.cycle}\n")
+        output_file.write("Stimulation voltage (V),Measured current(A)\n")
+        output_file.write(input_file.read())
+    
+    #copy to a new file
